@@ -86,6 +86,7 @@ import com.lowagie.text.pdf.PdfStamper;
 import com.lowagie.text.pdf.PdfString;
 import com.lowagie.text.pdf.PdfWriter;
 import com.lowagie.text.pdf.TSAClientBouncyCastle;
+import java.io.ByteArrayOutputStream;
 
 /**
  * Main logic of signer application. It uses iText to create signature in PDF.
@@ -364,13 +365,27 @@ public class SignerLogic implements Runnable {
             PdfPKCS7 sgn = new PdfPKCS7(key, chain, crlInfo.getCrls(), hashAlgorithm.getAlgorithmName(), provider, false);
             InputStream data = sap.getRangeStream();
             final MessageDigest messageDigest = MessageDigest.getInstance(hashAlgorithm.getAlgorithmName());
+            ByteArrayOutputStream allDataByteStream = new ByteArrayOutputStream();
             byte buf[] = new byte[8192];
             int n;
             while ((n = data.read(buf)) > 0) {
                 messageDigest.update(buf, 0, n);
+                allDataByteStream.write(buf, 0, n);
             }
+            byte pdfDataToHash[] = allDataByteStream.toByteArray();
             byte hash[] = messageDigest.digest();
-            Calendar cal = Calendar.getInstance();
+            
+            
+            byte[] encodedSig;
+            
+            //Tohle funguje
+            encodedSig = getRemSigSignature(pdfDataToHash);            
+            
+            //Zatímco tohle ne - Adobe Reader hlásí, že pdf bylo po podpisu změněno
+            encodedSig = getRemSigSignature(hash);                       
+            
+            //Zde zakomentovaná původní logika
+            /*Calendar cal = Calendar.getInstance();
             byte[] ocsp = null;
             if (options.isOcspEnabledX() && chain.length >= 2) {
                 LOGGER.info(RES.get("console.getOCSPURL"));
@@ -423,7 +438,8 @@ public class SignerLogic implements Runnable {
                 }
             }
             byte[] encodedSig = sgn.getEncodedPKCS7(hash, cal, tsc, ocsp);
-
+            */
+            
             if (contentEstimated + 2 < encodedSig.length) {
                 System.err.println("SigSize - contentEstimated=" + contentEstimated + ", sigLen=" + encodedSig.length);
                 throw new Exception("Not enough space");
